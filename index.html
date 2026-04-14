@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music Score Editor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f4f0;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    #app { width: 100%; max-width: 940px; }
+
+    h1 {
+      font-size: 20px; font-weight: 600; letter-spacing: -0.3px;
+      margin-bottom: 1.25rem; color: #111;
+    }
+    h1 span { font-weight: 400; color: #888; font-size: 14px; margin-left: 8px; }
+
+    .panel {
+      background: #fff; border: 1px solid #e5e3dc;
+      border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
+    }
+    .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.5px; color: #aaa; min-width: 52px;
+    }
+    .divider { width: 1px; height: 28px; background: #e5e3dc; flex-shrink: 0; }
+
+    .inst-btn {
+      padding: 6px 14px; font-size: 13px; font-weight: 500;
+      border: 1px solid #d8d5cc; border-radius: 8px;
+      background: #fff; color: #333; cursor: pointer; transition: all 0.15s;
+    }
+    .inst-btn.active { background: #3C3489; color: #fff; border-color: #3C3489; }
+    .inst-btn:hover:not(.active) { background: #f5f4f0; }
+
+    .dur-btn {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 3px; padding: 6px 10px; min-width: 54px; height: 56px;
+      border: 1px solid #e0ddd4; border-radius: 8px;
+      background: #fff; cursor: pointer; transition: all 0.12s;
+    }
+    .dur-btn.active { background: #3C3489; border-color: #3C3489; }
+    .dur-btn:hover:not(.active) { background: #f0efe9; border-color: #ccc; }
+    .dur-btn svg { display: block; }
+    .dur-btn span { font-size: 10px; font-weight: 500; color: #888; line-height: 1; }
+    .dur-btn.active span { color: #c0bbff; }
+
+    .note-picker { display: flex; gap: 5px; flex-wrap: wrap; }
+    .note-btn {
+      width: 36px; height: 34px; font-size: 11px; font-weight: 500;
+      border: 1px solid #e0ddd4; border-radius: 7px;
+      background: #fff; color: #555; cursor: pointer; transition: all 0.12s;
+    }
+    .note-btn.selected { background: #3C3489; color: #fff; border-color: #3C3489; }
+    .note-btn:hover:not(.selected) { background: #f0efe9; color: #222; border-color: #ccc; }
+
+    .right-cluster { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+    .tempo-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #666; }
+    .tempo-row input[type=range] { width: 80px; accent-color: #3C3489; }
+    .tempo-val { font-weight: 600; min-width: 32px; color: #222; }
+
+    .btn {
+      padding: 7px 14px; font-size: 13px; font-weight: 500;
+      border: 1px solid #d8d5cc; border-radius: 8px;
+      background: #fff; color: #333; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .btn:hover { background: #f5f4f0; border-color: #bbb; }
+    .btn.primary { background: #3C3489; color: #fff; border-color: #3C3489; }
+    .btn.primary:hover { background: #534AB7; border-color: #534AB7; }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+    .export-row {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+    }
+    .export-label { font-size: 12px; color: #999; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .score-outer {
+      border: 1px solid #e5e3dc; border-radius: 12px;
+      background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      padding: 0 0 8px;
+    }
+    #score-canvas { display: block; cursor: pointer; width: 100%; }
+
+    .bar-counter {
+      font-size: 12px; color: #aaa; padding: 4px 16px 2px; text-align: right;
+    }
+    .bar-counter strong { color: #888; }
+
+    .footer {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 0.75rem; flex-wrap: wrap; gap: 4px;
+    }
+    .hint { font-size: 12px; color: #aaa; }
+    .status { font-size: 13px; color: #555; min-height: 20px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <h1>Music Score Editor <span>Flute &amp; Clarinet</span></h1>
+
+  <div class="panel">
+    <div class="row">
+      <span class="label">Instr.</span>
+      <div style="display:flex;gap:6px">
+        <button class="inst-btn active" id="btn-flute" onclick="setInstrument('flute')">Flute</button>
+        <button class="inst-btn" id="btn-clarinet" onclick="setInstrument('clarinet')">Clarinet</button>
+      </div>
+      <div class="divider"></div>
+      <span class="label">Value</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="dur-picker"></div>
+      <div class="right-cluster">
+        <div class="tempo-row">
+          <span>Tempo</span>
+          <input type="range" min="40" max="200" value="100" step="1" id="tempo-slider" oninput="updateTempo(this.value)">
+          <span class="tempo-val" id="tempo-val">100</span>
+          <span style="font-size:12px;color:#aaa">BPM</span>
+        </div>
+        <button class="btn" onclick="clearScore()">Clear</button>
+        <button class="btn primary" id="play-btn" onclick="playScore()">&#9654; Play</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <span class="label">Pitch</span>
+      <div class="note-picker" id="note-picker"></div>
+    </div>
+  </div>
+
+  <div class="export-row">
+    <span class="export-label">Export:</span>
+    <button class="btn" onclick="exportPNG()">&#11015; Download PNG</button>
+    <button class="btn" onclick="exportMusicXML()">&#11015; Download MusicXML</button>
+    <div style="flex:1"></div>
+    <button class="btn" onclick="addRow()" title="Add 7 more bars">+ Add row</button>
+  </div>
+
+  <div class="score-outer">
+    <canvas id="score-canvas"></canvas>
+    <div class="bar-counter" id="bar-counter">4 bars</div>
+  </div>
+
+  <div class="footer">
+    <span class="hint">Select pitch + value, click a slot to place. Score grows a new line when the last bar fills up.</span>
+    <span class="status" id="status"></span>
+  </div>
+</div>
+
+<script>
+// ── Music constants ──────────────────────────────────────────────────────────
+const NOTE_NAMES = ['C4','D4','E4','F4','G4','A4','B4','C5','D5','E5','F5','G5'];
+const NOTE_FREQS = {
+  C4:261.63,D4:293.66,E4:329.63,F4:349.23,G4:392.00,A4:440.00,
+  B4:493.88,C5:523.25,D5:587.33,E5:659.25,F5:698.46,G5:783.99
+};
+const NOTE_STEP = {C4:'C',D4:'D',E4:'E',F4:'F',G4:'G',A4:'A',B4:'B',C5:'C',D5:'D',E5:'E',F5:'F',G5:'G'};
+const NOTE_OCT  = {C4:4,D4:4,E4:4,F4:4,G4:4,A4:4,B4:4,C5:5,D5:5,E5:5,F5:5,G5:5};
+
+const DURATIONS = [
+  { id:'whole',     label:'Whole',   slots:16, xmlType:'whole',  xmlDiv:16 },
+  { id:'half',      label:'Half',    slots:8,  xmlType:'half',   xmlDiv:8  },
+  { id:'quarter',   label:'Quarter', slots:4,  xmlType:'quarter',xmlDiv:4  },
+  { id:'eighth',    label:'Eighth',  slots:2,  xmlType:'eighth', xmlDiv:2  },
+  { id:'sixteenth', label:'16th',    slots:1,  xmlType:'16th',   xmlDiv:1  },
+];
+
+// ── Layout constants ─────────────────────────────────────────────────────────
+const SLOTS_PER_BAR = 16;
+const BARS_PER_ROW  = 7;       // bars before wrapping to next line
+const MIN_BARS      = 7;       // start with one full row
+const SLOT_W        = 17;      // px per 16th-note slot
+const CLEF_W        = 52;      // left margin for instrument label
+const ROW_PAD_TOP   = 48;      // space above each staff row (bar labels, etc.)
+const ROW_PAD_BOT   = 32;      // space below each staff row (duration labels)
+const ROW_GAP       = 20;      // extra gap between rows
+const LINE_GAP      = 15;
+const N_LINES       = 5;
+const STAFF_H       = (N_LINES - 1) * LINE_GAP;
+const ROW_H         = ROW_PAD_TOP + STAFF_H + ROW_PAD_BOT; // height of one staff row
+
+// Derived
+function rowWidth(tc_width) {
+  return tc_width - 16; // full canvas width minus small right pad
+}
+function barWidth() {
+  return BARS_PER_ROW > 0 ? (rowWidth(canvasEl.width) - CLEF_W) / BARS_PER_ROW : 0;
+}
+function slotWidth() { return barWidth() / SLOTS_PER_BAR; }
+
+// ── State ────────────────────────────────────────────────────────────────────
+let selectedPitch    = null;
+let selectedDuration = DURATIONS[2];
+let instrument       = 'flute';
+let tempo            = 100;
+let isPlaying        = false;
+let audioCtx         = null;
+let placedNotes      = [];  // {slot, pitch, duration}
+let numBars          = MIN_BARS;
+
+function totalSlots() { return numBars * SLOTS_PER_BAR; }
+function numRows()    { return Math.ceil(numBars / BARS_PER_ROW); }
+
+// ── Coordinate helpers ───────────────────────────────────────────────────────
+// Given a global bar index, return {row, colInRow}
+function barPos(barIndex) {
+  return { row: Math.floor(barIndex / BARS_PER_ROW), col: barIndex % BARS_PER_ROW };
+}
+
+// Top Y of a given row
+function rowTopY(row) {
+  return row * (ROW_H + ROW_GAP) + ROW_PAD_TOP;
+}
+
+// X of the left edge of a bar (by its column within a row)
+function barLeftX(col) {
+  return CLEF_W + col * barWidth();
+}
+
+// X of a slot within a row
+function slotX(slotInRow) {
+  return CLEF_W + slotInRow * slotWidth();
+}
+
+// Y of a pitch on the staff (same for every row — offset by rowTopY)
+function noteOffsetY(ni) {
+  // ni=11 (G5) is top, ni=0 (C4) is below bottom line
+  return (11 - ni) * (LINE_GAP / 2);
+}
+function noteY(ni, row) { return rowTopY(row) + noteOffsetY(ni); }
+
+// Global slot → {row, slotInRow, x, y for pitch ni}
+function slotCoords(globalSlot) {
+  const bar       = Math.floor(globalSlot / SLOTS_PER_BAR);
+  const slotInBar = globalSlot % SLOTS_PER_BAR;
+  const { row, col } = barPos(bar);
+  const x = CLEF_W + (col * SLOTS_PER_BAR + slotInBar) * slotWidth();
+  return { row, x };
+}
+
+// ── Auto-grow ────────────────────────────────────────────────────────────────
+function highestOccupiedSlot() {
+  if (!placedNotes.length) return -1;
+  return Math.max(...placedNotes.map(n => n.slot + n.duration.slots - 1));
+}
+
+function occupiedSlotsInBar(barIndex) {
+  const start = barIndex * SLOTS_PER_BAR;
+  const end   = start + SLOTS_PER_BAR;
+  let count = 0, s = start;
+  while (s < end) {
+    const n = noteAtSlot(s);
+    if (n) { const ne = Math.min(n.slot + n.duration.slots, end); count += ne - s; s = ne; }
+    else s++;
+  }
+  return count;
+}
+
+function lastBarIsFull() {
+  return occupiedSlotsInBar(numBars - 1) >= SLOTS_PER_BAR;
+}
+
+function maybeGrow() {
+  if (lastBarIsFull()) {
+    numBars++;
+    updateBarCounter();
+    resizeCanvas();
+  }
+}
+
+function trimBars() {
+  const highest  = highestOccupiedSlot();
+  const lastUsed = highest < 0 ? -1 : Math.floor(highest / SLOTS_PER_BAR);
+  // Keep at least one empty buffer bar, and always fill out the current row
+  const minFromContent = lastUsed + 2;
+  // Round up to complete current row so we never show a partial row
+  const rowsNeeded = Math.ceil(minFromContent / BARS_PER_ROW);
+  const needed = Math.max(MIN_BARS, rowsNeeded * BARS_PER_ROW);
+  if (needed < numBars) {
+    numBars = needed;
+    updateBarCounter();
+    resizeCanvas();
+  }
+}
+
+function updateBarCounter() {
+  const r = numRows();
+  document.getElementById('bar-counter').innerHTML =
+    '<strong>' + numBars + '</strong> bar' + (numBars !== 1 ? 's' : '') +
+    ' &nbsp;·&nbsp; <strong>' + r + '</strong> row' + (r !== 1 ? 's' : '');
+}
+
+// ── Note lookup ──────────────────────────────────────────────────────────────
+function noteAtSlot(slot) {
+  return placedNotes.find(n => slot >= n.slot && slot < n.slot + n.duration.slots) || null;
+}
+
+// ── Audio ────────────────────────────────────────────────────────────────────
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function setInstrument(inst) {
+  instrument = inst;
+  document.getElementById('btn-flute').classList.toggle('active', inst === 'flute');
+  document.getElementById('btn-clarinet').classList.toggle('active', inst === 'clarinet');
+}
+function updateTempo(v) {
+  tempo = parseInt(v);
+  document.getElementById('tempo-val').textContent = v;
+}
+
+// ── Note glyph SVGs ──────────────────────────────────────────────────────────
+function noteGlyphSVG(id, color) {
+  const c = color || '#3C3489', sw = 1.6;
+  const sol = `<ellipse cx="12" cy="30" rx="7.5" ry="5" transform="rotate(-18,12,30)" fill="${c}"/>`;
+  const opn = `<ellipse cx="12" cy="30" rx="7.5" ry="5" transform="rotate(-18,12,30)" fill="none" stroke="${c}" stroke-width="${sw}"/>`;
+  const stm = `<line x1="19" y1="27" x2="19" y2="6" stroke="${c}" stroke-width="${sw}"/>`;
+  const fl1 = `<path d="M19,6 Q30,11 19,21" fill="none" stroke="${c}" stroke-width="${sw}"/>`;
+  const fl2 = `<path d="M19,6 Q30,11 19,21 M19,12 Q30,17 19,27" fill="none" stroke="${c}" stroke-width="${sw}"/>`;
+  let b = '';
+  if (id==='whole')     b=`<ellipse cx="12" cy="30" rx="9" ry="6" transform="rotate(-18,12,30)" fill="none" stroke="${c}" stroke-width="${sw}"/>`;
+  if (id==='half')      b=opn+stm;
+  if (id==='quarter')   b=sol+stm;
+  if (id==='eighth')    b=sol+stm+fl1;
+  if (id==='sixteenth') b=sol+stm+fl2;
+  return `<svg width="32" height="44" viewBox="0 0 32 44" xmlns="http://www.w3.org/2000/svg">${b}</svg>`;
+}
+
+// ── Pickers ──────────────────────────────────────────────────────────────────
+function buildDurPicker() {
+  const el = document.getElementById('dur-picker');
+  DURATIONS.forEach(d => {
+    const btn = document.createElement('button');
+    btn.className = 'dur-btn' + (d.id === selectedDuration.id ? ' active' : '');
+    btn.id = 'dur-' + d.id;
+    btn.innerHTML = noteGlyphSVG(d.id, d.id === selectedDuration.id ? '#fff' : '#3C3489') + `<span>${d.label}</span>`;
+    btn.onclick = () => selectDuration(d);
+    el.appendChild(btn);
+  });
+}
+function selectDuration(d) {
+  selectedDuration = d;
+  DURATIONS.forEach(x => {
+    const btn = document.getElementById('dur-' + x.id);
+    const on = x.id === d.id;
+    btn.classList.toggle('active', on);
+    btn.innerHTML = noteGlyphSVG(x.id, on ? '#fff' : '#3C3489') + `<span>${x.label}</span>`;
+  });
+  setStatus('Value: ' + d.label + (selectedPitch ? '  |  Pitch: ' + selectedPitch : ''));
+}
+function buildNotePicker() {
+  const el = document.getElementById('note-picker');
+  NOTE_NAMES.forEach(n => {
+    const b = document.createElement('button');
+    b.className = 'note-btn';
+    b.innerHTML = n.replace(/\d/,'') + '<sub style="font-size:8px">' + n.replace(/\D/,'') + '</sub>';
+    b.title = n; b.onclick = () => selectPitch(n, b);
+    el.appendChild(b);
+  });
+}
+function selectPitch(note, btn) {
+  selectedPitch = note;
+  document.querySelectorAll('.note-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  setStatus('Pitch: ' + note + '  |  Value: ' + selectedDuration.label);
+}
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+// ── Canvas setup ─────────────────────────────────────────────────────────────
+const canvasEl = document.getElementById('score-canvas');
+const ctx      = canvasEl.getContext('2d');
+
+function canvasHeight() { return numRows() * (ROW_H + ROW_GAP) - ROW_GAP + 8; }
+
+function resizeCanvas() {
+  canvasEl.width  = canvasEl.parentElement.clientWidth - 2; // -2 for border
+  canvasEl.height = canvasHeight();
+  draw();
+}
+function resize() { resizeCanvas(); }
+
+// ── Draw ─────────────────────────────────────────────────────────────────────
+function drawScore(tc, W, H, forExport) {
+  const lc   = 'rgba(0,0,0,0.16)';
+  const dim  = 'rgba(0,0,0,0.42)';
+  const rows = numRows();
+  const bw   = (W - CLEF_W) / BARS_PER_ROW;   // bar width in pixels
+  const sw   = bw / SLOTS_PER_BAR;             // slot width in pixels
+
+  tc.fillStyle = '#fff';
+  tc.fillRect(0, 0, W, H);
+
+  for (let row = 0; row < rows; row++) {
+    const top      = rowTopY(row);
+    const barsInRow = Math.min(BARS_PER_ROW, numBars - row * BARS_PER_ROW);
+
+    // Alternating bar shading
+    for (let col = 0; col < barsInRow; col++) {
+      const barIdx = row * BARS_PER_ROW + col;
+      if (barIdx % 2 === 0) {
+        tc.fillStyle = 'rgba(0,0,0,0.02)';
+        tc.fillRect(CLEF_W + col * bw, top, bw, STAFF_H);
+      }
+    }
+
+    // Ghost last-bar hint
+    if (!forExport) {
+      const lastBar   = numBars - 1;
+      const lastRow   = Math.floor(lastBar / BARS_PER_ROW);
+      const lastCol   = lastBar % BARS_PER_ROW;
+      if (row === lastRow) {
+        const lbEmpty = !placedNotes.some(n => n.slot + n.duration.slots - 1 >= lastBar * SLOTS_PER_BAR);
+        if (lbEmpty) {
+          tc.fillStyle = 'rgba(83,74,183,0.04)';
+          tc.fillRect(CLEF_W + lastCol * bw, top, bw, STAFF_H);
+          tc.font = '400 10px sans-serif';
+          tc.fillStyle = 'rgba(83,74,183,0.28)';
+          tc.textAlign = 'center';
+          tc.fillText('fill to add row', CLEF_W + (lastCol + 0.5) * bw, top - 14);
+        }
+      }
+    }
+
+    // Staff lines
+    const staffEndX = CLEF_W + barsInRow * bw;
+    for (let i = 0; i < N_LINES; i++) {
+      const y = top + i * LINE_GAP;
+      tc.beginPath(); tc.strokeStyle = lc; tc.lineWidth = 0.8;
+      tc.moveTo(CLEF_W - 6, y); tc.lineTo(staffEndX, y);
+      tc.stroke();
+    }
+
+    // Bar lines
+    for (let col = 0; col <= barsInRow; col++) {
+      const x = CLEF_W + col * bw;
+      tc.beginPath(); tc.strokeStyle = lc;
+      tc.lineWidth = (col === 0 || col === barsInRow) ? 1.4 : 0.7;
+      tc.moveTo(x, top); tc.lineTo(x, top + STAFF_H); tc.stroke();
+    }
+
+    // Beat subdivisions
+    for (let col = 0; col < barsInRow; col++) {
+      for (let s = 1; s < SLOTS_PER_BAR; s++) {
+        const x      = CLEF_W + (col * SLOTS_PER_BAR + s) * sw;
+        const isHalf = s % 8 === 0;
+        const isBeat = s % 4 === 0;
+        tc.beginPath();
+        tc.strokeStyle = isHalf ? 'rgba(0,0,0,0.10)' : isBeat ? 'rgba(0,0,0,0.07)' : 'rgba(0,0,0,0.035)';
+        tc.lineWidth = 0.5;
+        const h = isHalf ? STAFF_H : isBeat ? STAFF_H * 0.55 : STAFF_H * 0.28;
+        tc.moveTo(x, top + STAFF_H - h); tc.lineTo(x, top + STAFF_H);
+        tc.stroke();
+      }
+    }
+
+    // Bar labels + beat numbers
+    for (let col = 0; col < barsInRow; col++) {
+      const barIdx = row * BARS_PER_ROW + col;
+      const barCx  = CLEF_W + (col + 0.5) * bw;
+      tc.font = '600 11px sans-serif'; tc.fillStyle = 'rgba(0,0,0,0.22)'; tc.textAlign = 'center';
+      tc.fillText('Bar ' + (barIdx + 1), barCx, top - 30);
+      for (let b = 0; b < 4; b++) {
+        const bx = CLEF_W + (col * SLOTS_PER_BAR + b * 4 + 2) * sw;
+        tc.font = '400 9px sans-serif'; tc.fillStyle = 'rgba(0,0,0,0.18)'; tc.textAlign = 'center';
+        tc.fillText(b + 1, bx, top - 16);
+      }
+    }
+
+    // Instrument label
+    tc.font = 'bold 11px sans-serif'; tc.fillStyle = dim; tc.textAlign = 'center';
+    tc.fillText(instrument === 'flute' ? 'Fl.' : 'Cl.', CLEF_W / 2, top + STAFF_H / 2 + 4);
+  }
+
+  // ── Draw notes ──
+  placedNotes.forEach(n => {
+    const ni       = NOTE_NAMES.indexOf(n.pitch);
+    const dur      = n.duration;
+    const bar      = Math.floor(n.slot / SLOTS_PER_BAR);
+    const { row, col } = barPos(bar);
+    const slotInRow = (n.slot - row * BARS_PER_ROW * SLOTS_PER_BAR);
+    const spanPx   = dur.slots * sw;
+    const cx       = CLEF_W + slotInRow * sw + spanPx / 2;
+    const top      = rowTopY(row);
+    const cy       = top + noteOffsetY(ni);
+    const isOpen   = dur.id === 'whole' || dur.id === 'half';
+    const NC       = '#534AB7';
+
+    // Ledger lines above staff
+    if (cy < top - LINE_GAP / 2) {
+      for (let ly = top - LINE_GAP; ly >= cy - 2; ly -= LINE_GAP) {
+        tc.beginPath(); tc.strokeStyle = NC; tc.lineWidth = 0.8;
+        tc.moveTo(cx - 11, ly); tc.lineTo(cx + 11, ly); tc.stroke();
+      }
+    }
+    // Ledger lines below staff
+    if (cy > top + STAFF_H + LINE_GAP / 2) {
+      for (let ly = top + STAFF_H + LINE_GAP; ly <= cy + 2; ly += LINE_GAP) {
+        tc.beginPath(); tc.strokeStyle = NC; tc.lineWidth = 0.8;
+        tc.moveTo(cx - 11, ly); tc.lineTo(cx + 11, ly); tc.stroke();
+      }
+    }
+
+    // Note head
+    const rx = Math.min(spanPx / 2 - 2, 9), ry = 5.5;
+    tc.beginPath(); tc.ellipse(cx, cy, rx, ry, -0.22, 0, Math.PI * 2);
+    if (isOpen) { tc.strokeStyle = NC; tc.lineWidth = 1.8; tc.stroke(); }
+    else        { tc.fillStyle = NC; tc.fill(); }
+
+    // Stem
+    if (dur.id !== 'whole') {
+      const sx = cx + rx - 1, sty = cy - 28;
+      tc.beginPath(); tc.strokeStyle = NC; tc.lineWidth = 1.5;
+      tc.moveTo(sx, cy); tc.lineTo(sx, sty); tc.stroke();
+      if (dur.id === 'eighth' || dur.id === 'sixteenth') {
+        tc.beginPath(); tc.strokeStyle = NC; tc.lineWidth = 1.5;
+        tc.moveTo(sx, sty);
+        tc.bezierCurveTo(sx+11, sty+5, sx+9, sty+13, sx, sty+17); tc.stroke();
+      }
+      if (dur.id === 'sixteenth') {
+        const f2 = sty + 10;
+        tc.beginPath(); tc.strokeStyle = NC; tc.lineWidth = 1.5;
+        tc.moveTo(sx, f2);
+        tc.bezierCurveTo(sx+11, f2+5, sx+9, f2+13, sx, f2+17); tc.stroke();
+      }
+    }
+
+    // Pitch label
+    tc.font = '500 8px sans-serif'; tc.fillStyle = isOpen ? NC : '#fff';
+    tc.textAlign = 'center'; tc.textBaseline = 'middle';
+    tc.fillText(n.pitch.replace(/\d/,''), cx, cy + 0.5);
+    tc.textBaseline = 'alphabetic';
+
+    // Duration label below staff
+    tc.font = '400 9px sans-serif'; tc.fillStyle = 'rgba(83,74,183,0.5)'; tc.textAlign = 'center';
+    tc.fillText(dur.label, cx, top + STAFF_H + 20);
+  });
+
+  if (forExport) {
+    tc.font = '11px sans-serif'; tc.fillStyle = 'rgba(0,0,0,0.28)'; tc.textAlign = 'left';
+    tc.fillText('Tempo: ' + tempo + ' BPM  |  ' + instrument.charAt(0).toUpperCase() + instrument.slice(1), 12, H - 4);
+  }
+}
+
+function draw() { drawScore(ctx, canvasEl.width, canvasEl.height, false); }
+
+// ── Click ────────────────────────────────────────────────────────────────────
+canvasEl.addEventListener('click', e => {
+  if (isPlaying) return;
+  const rect  = canvasEl.getBoundingClientRect();
+  const scaleX = canvasEl.width / rect.width;
+  const scaleY = canvasEl.height / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top)  * scaleY;
+
+  const W  = canvasEl.width;
+  const bw = (W - CLEF_W) / BARS_PER_ROW;
+  const sw = bw / SLOTS_PER_BAR;
+
+  // Determine which row was clicked
+  const rows = numRows();
+  let clickedRow = -1;
+  for (let r = 0; r < rows; r++) {
+    const top = rowTopY(r);
+    if (my >= top - ROW_PAD_TOP && my <= top + STAFF_H + ROW_PAD_BOT) {
+      clickedRow = r; break;
+    }
+  }
+  if (clickedRow < 0) return;
+
+  const top           = rowTopY(clickedRow);
+  const barsInRow     = Math.min(BARS_PER_ROW, numBars - clickedRow * BARS_PER_ROW);
+  const colInRow      = Math.floor((mx - CLEF_W) / bw);
+  if (colInRow < 0 || colInRow >= barsInRow) return;
+
+  const slotInRow     = Math.floor((mx - CLEF_W) / sw);
+  const globalSlot    = clickedRow * BARS_PER_ROW * SLOTS_PER_BAR + slotInRow;
+  if (globalSlot < 0 || globalSlot >= totalSlots()) return;
+
+  // Remove?
+  const existing = noteAtSlot(globalSlot);
+  if (existing) {
+    placedNotes = placedNotes.filter(n => n !== existing);
+    setStatus('Removed ' + existing.pitch + ' (' + existing.duration.label + ')');
+    trimBars(); draw(); return;
+  }
+
+  if (!selectedPitch) { setStatus('Select a pitch first!'); return; }
+
+  const endSlot = globalSlot + selectedDuration.slots;
+  // Don't allow a note to span across a bar boundary
+  const startBar = Math.floor(globalSlot / SLOTS_PER_BAR);
+  const endBar   = Math.floor((endSlot - 1) / SLOTS_PER_BAR);
+  if (startBar !== endBar) { setStatus('Note would cross a bar line — try a shorter value or earlier slot.'); return; }
+  if (endSlot > totalSlots()) { setStatus('Not enough space — try an earlier slot.'); return; }
+  for (let s = globalSlot; s < endSlot; s++) {
+    if (noteAtSlot(s)) { setStatus('Overlaps an existing note — remove it first.'); return; }
+  }
+
+  placedNotes.push({ slot: globalSlot, pitch: selectedPitch, duration: selectedDuration });
+  placedNotes.sort((a, b) => a.slot - b.slot);
+  setStatus('Placed ' + selectedPitch + ' (' + selectedDuration.label + ')');
+  maybeGrow(); draw();
+});
+
+function clearScore() {
+  placedNotes = []; numBars = MIN_BARS;
+  updateBarCounter(); resizeCanvas(); setStatus('Score cleared');
+}
+
+function addRow() {
+  numBars += BARS_PER_ROW;
+  updateBarCounter(); resizeCanvas();
+  setStatus('Added a row — now ' + numBars + ' bars across ' + numRows() + ' rows');
+  canvasEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+// ── Export PNG ───────────────────────────────────────────────────────────────
+function exportPNG() {
+  if (!placedNotes.length) { setStatus('Add some notes first!'); return; }
+  const W = canvasEl.width, H = canvasEl.height;
+  const exp = document.createElement('canvas');
+  exp.width = W * 2; exp.height = H * 2;
+  const ec = exp.getContext('2d'); ec.scale(2, 2);
+  drawScore(ec, W, H, true);
+  const link = document.createElement('a');
+  link.download = 'sheet-music.png';
+  link.href = exp.toDataURL('image/png'); link.click();
+  setStatus('Downloaded sheet-music.png');
+}
+
+// ── Export MusicXML ──────────────────────────────────────────────────────────
+function exportMusicXML() {
+  if (!placedNotes.length) { setStatus('Add some notes first!'); return; }
+  const DIV = 4;
+  const instName = instrument === 'flute' ? 'Flute' : 'Clarinet';
+  const instAbbr = instrument === 'flute' ? 'Fl.' : 'Cl.';
+  const midiProg = instrument === 'flute' ? 73 : 71;
+  const highest   = highestOccupiedSlot();
+  const exportBars = Math.max(1, Math.ceil((highest + 1) / SLOTS_PER_BAR));
+  const noteMap = {};
+  placedNotes.forEach(n => { noteMap[n.slot] = n; });
+
+  const measuresXml = [];
+  for (let m = 0; m < exportBars; m++) {
+    let content = '';
+    if (m === 0) {
+      content += `
+      <attributes>
+        <divisions>${DIV}</divisions>
+        <key><fifths>0</fifths></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      <direction placement="above">
+        <direction-type><metronome parentheses="no"><beat-unit>quarter</beat-unit><per-minute>${tempo}</per-minute></metronome></direction-type>
+        <sound tempo="${tempo}"/>
+      </direction>`;
+    }
+    let s = m * SLOTS_PER_BAR;
+    while (s < (m + 1) * SLOTS_PER_BAR) {
+      const n = noteMap[s];
+      if (n) {
+        content += `\n      <note><pitch><step>${NOTE_STEP[n.pitch]}</step><octave>${NOTE_OCT[n.pitch]}</octave></pitch><duration>${n.duration.xmlDiv}</duration><type>${n.duration.xmlType}</type></note>`;
+        s += n.duration.slots;
+      } else {
+        content += `\n      <note><rest/><duration>1</duration><type>16th</type></note>`;
+        s++;
+      }
+    }
+    measuresXml.push(`  <measure number="${m+1}">${content}\n  </measure>`);
+  }
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1">
+  <work><work-title>Sheet Music</work-title></work>
+  <identification><encoding><software>Music Score Editor</software></encoding></identification>
+  <part-list>
+    <score-part id="P1">
+      <part-name>${instName}</part-name><part-abbreviation>${instAbbr}</part-abbreviation>
+      <score-instrument id="P1-I1"><instrument-name>${instName}</instrument-name></score-instrument>
+      <midi-instrument id="P1-I1"><midi-channel>1</midi-channel><midi-program>${midiProg}</midi-program><volume>80</volume><pan>0</pan></midi-instrument>
+    </score-part>
+  </part-list>
+  <part id="P1">\n${measuresXml.join('\n')}\n  </part>
+</score-partwise>`;
+
+  const blob = new Blob([xml], { type: 'application/vnd.recordare.musicxml+xml' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.download = 'sheet-music.musicxml'; a.href = url; a.click();
+  URL.revokeObjectURL(url);
+  setStatus('Downloaded sheet-music.musicxml');
+}
+
+// ── Synthesis ────────────────────────────────────────────────────────────────
+function synthNote(ac, freq, t0, dur, inst) {
+  const g = ac.createGain(); g.connect(ac.destination);
+  if (inst === 'flute') {
+    const o1=ac.createOscillator(),o2=ac.createOscillator(),o3=ac.createOscillator();
+    o1.type='sine';o1.frequency.value=freq; o2.type='sine';o2.frequency.value=freq*2; o3.type='sine';o3.frequency.value=freq*3;
+    const g1=ac.createGain();g1.gain.value=0.6; const g2=ac.createGain();g2.gain.value=0.25; const g3=ac.createGain();g3.gain.value=0.10;
+    o1.connect(g1);o2.connect(g2);o3.connect(g3); g1.connect(g);g2.connect(g);g3.connect(g);
+    const lfo=ac.createOscillator(),lg=ac.createGain(); lfo.frequency.value=5.5; lg.gain.value=2.5; lfo.connect(lg);lg.connect(o1.frequency);
+    g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(0.28,t0+Math.min(0.06,dur*0.2));
+    g.gain.setValueAtTime(0.22,t0+dur*0.75); g.gain.linearRampToValueAtTime(0,t0+dur);
+    [o1,o2,o3,lfo].forEach(o=>{o.start(t0);o.stop(t0+dur+0.05);});
+  } else {
+    const o1=ac.createOscillator(),o3=ac.createOscillator(),o5=ac.createOscillator();
+    o1.type='square';o1.frequency.value=freq; o3.type='sine';o3.frequency.value=freq*3; o5.type='sine';o5.frequency.value=freq*5;
+    const g1=ac.createGain();g1.gain.value=0.45; const g3=ac.createGain();g3.gain.value=0.12; const g5=ac.createGain();g5.gain.value=0.05;
+    const lp=ac.createBiquadFilter(); lp.type='lowpass';lp.frequency.value=1800;lp.Q.value=2;
+    o1.connect(g1);o3.connect(g3);o5.connect(g5); g1.connect(lp);g3.connect(lp);g5.connect(lp);lp.connect(g);
+    g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(0.22,t0+Math.min(0.03,dur*0.15));
+    g.gain.setValueAtTime(0.18,t0+dur*0.7); g.gain.linearRampToValueAtTime(0,t0+dur);
+    [o1,o3,o5].forEach(o=>{o.start(t0);o.stop(t0+dur+0.05);});
+  }
+}
+
+// ── Playback ─────────────────────────────────────────────────────────────────
+async function playScore() {
+  if (!placedNotes.length) { setStatus('Add some notes first!'); return; }
+  if (isPlaying) return;
+  isPlaying = true;
+  const btn = document.getElementById('play-btn');
+  btn.disabled = true; btn.textContent = 'Playing...';
+  const ac = getAudioCtx();
+  if (ac.state === 'suspended') await ac.resume();
+  const sixteenth = (60 / tempo) / 4;
+  const now = ac.currentTime + 0.05;
+  let lastEnd = 0;
+  placedNotes.forEach(n => {
+    const t0  = now + n.slot * sixteenth;
+    const dur = n.duration.slots * sixteenth * 0.92;
+    synthNote(ac, NOTE_FREQS[n.pitch], t0, dur, instrument);
+    lastEnd = Math.max(lastEnd, (n.slot + n.duration.slots) * sixteenth);
+  });
+  const iv = setInterval(() => {
+    const pct = Math.min(100, Math.round(((ac.currentTime - now) / lastEnd) * 100));
+    setStatus('Playing... ' + pct + '%');
+  }, 80);
+  setTimeout(() => {
+    clearInterval(iv); isPlaying = false;
+    btn.disabled = false; btn.textContent = '\u25b6 Play';
+    setStatus('Done');
+  }, (lastEnd + 0.7) * 1000);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+buildDurPicker();
+buildNotePicker();
+updateBarCounter();
+window.addEventListener('resize', resize);
+resize();
+</script>
+</body>
+</html>
